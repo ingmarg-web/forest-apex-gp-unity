@@ -24,19 +24,33 @@ namespace ForestApex.Editor
             AssetDatabase.Refresh();
         }
 
+        public static void ConfigureAndroidPlayerSettings()
+        {
+            PlayerSettings.productName = "Forest Apex GP";
+            PlayerSettings.companyName = "Forest Apex";
+            PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.forestapex.gp.unity");
+            PlayerSettings.bundleVersion = "0.2.0-unity";
+            PlayerSettings.Android.bundleVersionCode = 2;
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
+            PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel26;
+            PlayerSettings.Android.targetSdkVersion = AndroidSdkVersions.AndroidApiLevelAuto;
+            PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
+            PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+            EditorUserBuildSettings.buildAppBundle = false;
+        }
+
+        // Unity Build Automation: set this exact method as the Pre-export method.
+        public static void PrepareCloudBuild()
+        {
+            GeneratePlayableScene();
+            ConfigureAndroidPlayerSettings();
+            AssetDatabase.SaveAssets();
+        }
+
         [MenuItem("Forest Apex/Build Android APK")]
         public static void BuildAndroid()
         {
-            GeneratePlayableScene();
-
-            PlayerSettings.productName = "Forest Apex GP";
-            PlayerSettings.companyName = "Forest Apex";
-            PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.forestapex.gp");
-            PlayerSettings.bundleVersion = "0.1.0-unity";
-            PlayerSettings.Android.bundleVersionCode = 1;
-            PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
-            PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel26;
-            EditorUserBuildSettings.buildAppBundle = false;
+            PrepareCloudBuild();
 
             Directory.CreateDirectory("build/Android");
             var options = new BuildPlayerOptions
