@@ -1,0 +1,64 @@
+name: Build Installable Forest Apex APK
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "native-android/**"
+      - ".github/workflows/native-apk.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build APK with preinstalled Android SDK
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          BUILD_TOOLS_VERSION="$(ls -1 "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          PLATFORM_VERSION="$(ls -1 "$ANDROID_HOME/platforms" | sort -V | tail -1)"
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION"
+          ANDROID_JAR="$ANDROID_HOME/platforms/$PLATFORM_VERSION/android.jar"
+
+          echo "Using build-tools: $BUILD_TOOLS_VERSION"
+          echo "Using platform: $PLATFORM_VERSION"
+
+          rm -rf native-build
+          mkdir -p native-build/classes native-build/dex
+
+          "$BUILD_TOOLS/aapt2" compile             --dir native-android/res             -o native-build/resources.zip
+
+          "$BUILD_TOOLS/aapt2" link             -o native-build/base.apk             -I "$ANDROID_JAR"             --manifest native-android/AndroidManifest.xml             --min-sdk-version 26             --target-sdk-version 35             native-build/resources.zip
+
+          javac             -encoding UTF-8             -source 8             -target 8             -classpath "$ANDROID_JAR"             -d native-build/classes             $(find native-android/src -name '*.java' -print)
+
+          "$BUILD_TOOLS/d8"             --lib "$ANDROID_JAR"             --min-api 26             --output native-build/dex             $(find native-build/classes -name '*.class' -print)
+
+          cp native-build/base.apk native-build/unsigned.apk
+          (cd native-build/dex && zip -q -j ../unsigned.apk classes.dex)
+
+          keytool -genkeypair             -keystore native-build/forest-apex-debug.keystore             -storepass forestapex             -keypass forestapex             -alias forestapex             -keyalg RSA             -keysize 2048             -validity 10000             -dname "CN=Forest Apex GP,O=Forest Apex,C=NL"
+
+          "$BUILD_TOOLS/zipalign" -f 4             native-build/unsigned.apk             native-build/aligned.apk
+
+          "$BUILD_TOOLS/apksigner" sign             --ks native-build/forest-apex-debug.keystore             --ks-pass pass:forestapex             --key-pass pass:forestapex             --out native-build/ForestApexGP.apk             native-build/aligned.apk
+
+          "$BUILD_TOOLS/apksigner" verify --verbose native-build/ForestApexGP.apk
+
+          ls -lh native-build/ForestApexGP.apk
+
+      - name: Upload Forest Apex GP APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ForestApexGP-Android-APK
+          path: native-build/ForestApexGP.apk
+          if-no-files-found: error
+          retention-days: 30
